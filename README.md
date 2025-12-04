@@ -117,14 +117,17 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 - **ROC-AUC**: 0.48 (indicates calibration challenges)
 
 ### Subgroup Fairness Analysis
+
+**Complete Performance Table:**
+
 | Subgroup | n | F1 | Accuracy | Threshold |
-|----------|---|-------|----------|-----------|
-| Female_Normal | 6 | 0.91 | 0.83 | 0.50 |
-| Female_Short | 4 | 0.86 | 0.75 | 0.50 |
-| Other_Short | 4 | 0.86 | 0.75 | 0.50 |
-| Male_Normal | 7 | 0.83 | 0.71 | 0.40 |
-| Other_Normal | 7 | 0.73 | 0.57 | 0.50 |
-| Male_Short | 4 | 0.67 | 0.50 | 0.50 |
+|-----------------|---|------|----------|-----------|
+| Female_Normal   | 6 | 0.91 | 0.83     | 0.50      |
+| Female_Short    | 4 | 0.86 | 0.75     | 0.50      |
+| Other_Short     | 4 | 0.86 | 0.75     | 0.50      |
+| Male_Normal     | 7 | 0.83 | 0.71     | 0.40      |
+| Other_Normal    | 7 | 0.73 | 0.57     | 0.50      |
+| Male_Short      | 4 | 0.67 | 0.50     | 0.50      |
 
 **Fairness Metrics:**
 - Std F1 (all groups): 0.092
@@ -137,23 +140,29 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 ## Team
 
 - **Abdul Jamil Safi**: 
-  - Python implementation (health_prediction_pipeline.py)
-  - Stacking ensemble architecture (4 base models + meta-model)
+  - Stacking ensemble implementation (health_prediction_pipeline.py)
+  - Stacking architecture design (4 base models + meta-model)
   - SMOTE integration and class balancing
   - CalibratedClassifierCV implementation
   - Per-subgroup threshold tuning algorithm
-  - Streamlit dashboard development
+  - Streamlit dashboard development (solo)
   - GitHub repository management
-  - Data analysis and visualization
+  - Data analysis
 
 - **Ola Hamza**: 
-  - LaTeX scientific report (final_scientific_report.tex)
+  - Random Forest baseline model (health.py)
+  - LaTeX scientific report documentation
   - Theoretical foundations and literature review
   - Methodology documentation
   - Results interpretation
   - Discussion and future work sections
 
-**Collaboration**: Strategy development, code review, fairness criteria definition, results discussion
+**Joint Contributions**: 
+  - Visualizations (figures for report)
+  - LaTeX report compilation and formatting
+  - Strategy development and code review
+  - Fairness criteria definition
+  - Results discussion and analysis
 
 ## Methodology Overview
 
