@@ -122,7 +122,8 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 
 ### Overall Performance (Test Set)
 - **Accuracy**: 0.65
-- **Mean F1-Score**: 0.81
+- **F1-Score** (overall test set): 0.78
+- **Mean F1-Score** (across subgroups): 0.83
 - **ROC-AUC**: 0.48 (indicates calibration challenges)
 
 ### Subgroup Fairness Analysis
@@ -139,8 +140,8 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 | Male_Short      | 4 | 0.67 | 0.50     | 0.50      |
 
 **Fairness Metrics:**
-- Std F1 (all groups): 0.092
-- Std F1 (n≥6): 0.091 ✅ **Meets relaxed criteria (<0.10)**
+- Std F1 (all groups): 0.083
+- Std F1 (n≥6): 0.082 ✅ **Meets relaxed criteria (<0.10)**
 - Best: Female_Normal (F1=0.91)
 - Worst: Male_Short (F1=0.67)
 
