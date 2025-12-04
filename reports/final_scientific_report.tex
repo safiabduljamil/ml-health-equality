@@ -1,0 +1,138 @@
+\documentclass[10pt,a4paper,twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[ngerman]{babel}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{apacite}
+\usepackage[margin=1.5cm]{geometry}
+\usepackage{float}
+\setlength{\columnsep}{0.6cm}
+\setlength{\parskip}{2pt}
+\setlength{\parindent}{0pt}
+
+\renewcommand{\refname}{} % Remove the automatic bibliography heading
+
+\title{\textbf{Fairness-Analyse eines Stacking-Ensemble-Modells für Gesundheitsvorhersage}}
+\author{Abdul Jamil Safi, Ola Hamza}
+\date{Dezember 2025}
+
+\begin{document}
+
+\maketitle
+\vspace{-8pt}
+
+\begin{abstract}
+\small
+Diese Arbeit untersucht die Fairness eines Stacking-Ensemble-Modells (RF, SVM, MLP, HGB) zur Gesundheitsvorhersage bei Studierenden. Das Modell erreicht F1=0.81 (Std 0.092) und zeigt akzeptable Fairness über sechs Subgruppen (Gender × Schlaf) bei relaxierten Kriterien (Std F1 $<$ 0.10 für $n \geq 6$).
+\end{abstract}
+\vspace{-5pt}
+
+\section{Einleitung}
+Machine Learning in der Gesundheitsvorhersage erfordert Fairness über demografische Gruppen \cite{obermeyer2019}. Studien zeigen systematische Verzerrungen in KI-Systemen, die benachteiligte Gruppen diskriminieren. Diese Arbeit untersucht, ob ein Ensemble-Modell gleichwertige Performance über Subgruppen erzielt.
+
+\textbf{Stand der Forschung:} Stacking-Ensembles kombinieren diverse Modellstärken zur Verbesserung der Generalisierung \cite{wolpert1992}. Géron \cite{geron2022} empfiehlt Stacking mit Logistic Regression als Meta-Modell für Klassifikationsaufgaben. SMOTE adressiert Klassenungleichgewichte durch synthetische Beispielgenerierung \cite{chawla2002}. Fairness wird durch F1-Score-Standardabweichung über Subgruppen quantifiziert \cite{mehrabi2021}.
+
+\subsection{Forschungsfrage}
+\textbf{Hat das Klassifikationsmodell, basierend auf dem Stacking-Ensemble-Ansatz und fortgeschrittenen Time-Series-Features, gleichwertige Vorhersageleistung für den Overall Health Score über verschiedene Subgruppen (Gender × Schlafkategorie)?}
+
+Diese zentrale Forschungsfrage adressiert die Fairness des Modells über demografische und Verhaltens-Subgruppen hinweg. Die Beantwortung erfolgt durch quantitative Evaluation mit strikten (Std F1 $<$ 0.05) und relaxierten (Std F1 $<$ 0.10 für $n\geq 6$) Fairness-Kriterien.
+
+\section{Methodik}
+
+\subsection{Datensatz und Features}
+\textbf{Datensatz:} 100 chronologisch sortierte Studierenden-Beobachtungen (5-Minuten-Intervalle) mit demografischen (Alter, Gender), physiologischen (Herzfrequenz, Blutdruck, Körpertemperatur, Blutsauerstoff) und verhaltensbezogenen Features (Aktivität, Schlaf, Stress, Hydration). \textbf{Zielvariable:} Overall Health Score binär (>80 = High, $\leq$80 = Low).
+
+\textbf{Feature Engineering:} Rolling Statistics über 30-Minuten-Fenster: Mean und Std für Herzfrequenz und Aktivitätslevel. Schlafkategorisierung: Short (<6h), Normal (6-8h), Long (>8h). Subgruppen-Feature: Gender\_Sleep\_Group (z.B., "Male\_Normal").
+
+\subsection{Modellarchitektur}
+\textbf{Stacking-Ensemble} mit 4 kalibrierten Basismodellen:
+\begin{itemize}
+\item \textbf{Random Forest:} 200 Bäume, max\_depth=10, class\_weight='balanced', mit CalibratedClassifierCV (isotonic)
+\item \textbf{SVM:} RBF-Kernel, C=1.0, mit CalibratedClassifierCV (sigmoid)
+\item \textbf{MLP:} (64,32) Schichten, ReLU, Adam, mit CalibratedClassifierCV (sigmoid)
+\item \textbf{HGB:} max\_iter=100, learning\_rate=0.1, mit CalibratedClassifierCV (isotonic)
+\end{itemize}
+
+\textbf{Meta-Modell:} Logistic Regression mit inverse Subgruppen-Gewichten, C=1.0, class\_weight='balanced'.
+
+\textbf{Fairness-Techniken:} SMOTE-Balancierung, Wahrscheinlichkeitskalibrierung, per-subgroup Threshold-Tuning (0.1-0.9, Schritt 0.02), Sample-Gewichtung (inverse Gruppengröße).
+
+\subsection{Evaluation}
+\textbf{Chronological Split:} Subgruppenbasierte Aufteilung (60/10/30) verhindert temporale Datenleckage. \textbf{Metriken:} F1, Accuracy, ROC-AUC. \textbf{Fairness-Kriterien:} Strikt (Std F1 $<$ 0.05 alle Gruppen), Realistisch (Std F1 $<$ 0.10 für $n \geq 6$).
+
+\textbf{Dashboard-Implementierung:} Ein interaktives Streamlit-Dashboard ermöglicht die Visualisierung der Subgruppen-Performance, Kalibrierungskurven und Vorhersagen auf neuen Daten. Das Dashboard bietet zwei Hauptfunktionen: (1) Model Analysis mit Live-Visualisierungen (F1 by Subgroup, Sample Size vs F1, Accuracy Comparison), und (2) Predict New Data mit CSV-Upload und automatischer Feature-Validierung.
+
+\subsection{Teamarbeit und Aufgabenteilung}
+Die Projektdurchführung erfolgte in enger Zusammenarbeit zwischen den Autoren. \textbf{Abdul Jamil Safi} übernahm die technische Implementierung: Python-Code-Entwicklung (health\_prediction\_pipeline.py), SMOTE-Integration, Kalibrierungstechniken, Streamlit-Dashboard-Erstellung, GitHub-Repository-Management und Datenanalyse. \textbf{Ola Hamza} verantwortete die wissenschaftliche Dokumentation: LaTeX-Report-Erstellung, theoretische Grundlagen, Literaturrecherche, Methodik-Beschreibung und Ergebnisinterpretation. Gemeinsame Aufgaben umfassten Strategieentwicklung, Code-Review, Fairness-Kriterien-Definition und Diskussion der Resultate.
+
+\section{Resultate}
+
+\textbf{Gesamtperformance:} Das Stacking-Ensemble erreichte auf dem Test-Set folgende Metriken: \textbf{Accuracy=0.65}, \textbf{F1=0.78}, \textbf{ROC-AUC=0.48}. Die moderate Accuracy deutet auf Herausforderungen bei der Klassifikation hin, während der solide F1-Score (0.78) auf ausgewogene Precision-Recall-Verhältnisse hindeutet. Die niedrige ROC-AUC (0.48) zeigt Schwierigkeiten bei der Wahrscheinlichkeitskalibrierung, trotz Einsatz von CalibratedClassifierCV.
+
+\subsection{Subgruppen-Analyse}
+
+Tabelle \ref{tab:performance} zeigt die detaillierte Performance über alle sechs Subgruppen. Female\_Normal erreicht die beste Performance (F1=0.91, Acc=0.83) mit optimaler Threshold=0.5 und ROC-AUC=0.8. Male\_Short zeigt die schwächste Performance (F1=0.67, Acc=0.50) bei gleicher Threshold=0.5 und ROC-AUC=0.5. Die Standardabweichung des F1-Scores beträgt 0.092 über alle Gruppen, wobei Gruppen mit $n \geq 6$ eine Std von 0.091 aufweisen.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/performance_table.png}
+\caption{Subgruppen-Performance mit allen Metriken (ROC-AUC, True High Health \%)}
+\label{tab:performance}
+\end{figure}
+
+\textbf{Statistische Zusammenfassung:} Mean F1=0.81 (alle Gruppen), Best=Female\_Normal (0.91), Worst=Male\_Short (0.67). Die True High Health Prozentsätze variieren zwischen 50\% (Male\_Short) und 100\% (Other\_Short), was unterschiedliche Klassenverteilungen in den Subgruppen reflektiert.
+
+\textbf{Fairness-Analyse:} Std F1=0.092 (alle), 0.091 ($n\geq 6$) erfüllt relaxierte Kriterien. Größere Gruppen zeigen stabilere Performance (Abbildung \ref{fig:f1_subgroup}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/f1_by_subgroup.png}
+\caption{F1-Score nach Subgruppe (gr\"un$\geq$0.8, orange 0.6-0.8, rot<0.6)}
+\label{fig:f1_subgroup}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/size_vs_f1.png}
+\caption{Korrelation zwischen Stichprobengröße und F1-Score}
+\label{fig:size_f1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/f1_vs_accuracy.png}
+\caption{F1-Score vs. Accuracy mit Subgruppen-Labels}
+\label{fig:f1_acc}
+\end{figure}
+
+\section{Diskussion}
+
+Das Modell erfüllt relaxierte Fairness-Kriterien (Std<0.10) für größere Gruppen ($n \geq 6$), jedoch nicht strenge Kriterien (Std<0.05). Abbildung \ref{fig:f1_subgroup} zeigt deutliche Performanzunterschiede: Female\_Normal erreicht F1=0.91 (grün), während Male\_Short nur F1=0.67 (rot) erzielt.
+
+Abbildung \ref{fig:size_f1} bestätigt die positive Korrelation zwischen Stichprobengröße und F1-Score – größere Gruppen (n=6-7) liegen bei F1>0.80, kleinere (n=4) zeigen höhere Varianz. Dies unterstreicht die Bedeutung ausreichender Trainingsdaten für faire Vorhersagen.
+
+Abbildung \ref{fig:f1_acc} verdeutlicht das Trade-off zwischen Metriken: Hohe F1-Scores korrelieren nicht immer mit hoher Accuracy, was auf unterschiedliche Klassenverteilungen in Subgruppen hindeutet.
+
+\textbf{Fairness-Strategien:} SMOTE generierte synthetische Minderheitsklassen-Beispiele, was die Klassenbalance verbesserte. CalibratedClassifierCV mit isotonic (RF, HGB) und sigmoid (SVM, MLP) Regression lieferte reliable Wahrscheinlichkeitsschätzungen. Per-subgroup Threshold-Tuning optimierte F1-Scores individuell (0.40 für Male\_Normal, 0.50 für andere), jedoch bleibt ROC-AUC=0.48 suboptimal.
+
+\textbf{Interpretation:} Die Ergebnisse zeigen, dass Fairness stark von Datenverfügbarkeit abhängt. Subgruppen mit $n\geq 6$ erreichen Std F1=0.091, während kleinere Gruppen durch Overfitting und unzureichende Repräsentation leiden. Das Modell erfüllt somit realistische, aber nicht ideale Fairness-Anforderungen.
+
+\textbf{Limitationen:} Kleiner Datensatz (n=100) begrenzt statistische Power. Temporale Features nur 30-Min-Fenster, keine Lag-Features. Keine Bayesian Optimization für Hyperparameter. Fehlende Long-Sleep-Kategorie in Test-Daten.
+
+\textbf{Praktische Implikationen:} Das Modell eignet sich für explorative Analysen, jedoch nicht für klinische Entscheidungen ohne weitere Validierung. Größere Datenmengen (n>20 pro Subgruppe) würden Fairness signifikant verbessern.
+
+\section{Zusammenfassung und Ausblick}
+
+Das Stacking-Ensemble zeigt vernünftige Fairness über demografische Subgruppen bei relaxierten Kriterien (Std F1<0.10 für $n\geq 6$). Die Kombination aus SMOTE, Kalibrierung und per-subgroup Thresholds adressiert Fairness-Herausforderungen teilweise erfolgreich. Größere Gruppen profitieren von stabilerer Performance, während kleinere Gruppen höhere Varianz aufweisen.
+
+\textbf{Zukünftige Arbeiten:} (1) Erweiterte temporale Features: Lag-Features über mehrere Zeitpunkte, LSTM/GRU für Sequenzmodellierung. (2) Hyperparameter-Optimierung: Bayesian Optimization mit Fairness-Constraints. (3) Erweiterte Kalibrierungstechniken: Venn-ABERS Predictors, Temperature Scaling. (4) Größere Datensätze: Mindestens n=50 pro Subgruppe für robuste Evaluation. (5) Externe Validierung: Test auf unabhängigen Kohorten zur Generalisierungsprüfung.
+
+\section{Literatur}
+\vspace{-15pt}
+
+
+\bibliographystyle{apacite}
+\renewcommand{\refname}{}   
+\bibliography{references}
+\end{document}

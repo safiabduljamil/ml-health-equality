@@ -1,23 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Health Prediction Pipeline - Stacking Ensemble with Subgroup Analysis
-======================================================================
-
-Forschungsfrage: Hat das Klassifikationsmodell eine gleichwertige 
-Vorhersageleistung für den Overall Health Score in den verschiedenen 
-Subgruppen (Gender × Sleep Category)?
-
-Author: Abdul Jamil Safi
-Date: December 2025
-"""
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.neural_network import MLPClassifier
@@ -27,18 +12,27 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, classification_report
 from imblearn.over_sampling import SMOTE
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
 # Set random seed for reproducibility
 RANDOM_STATE = 42
 np.random.seed(RANDOM_STATE)
 
-# Configuration
-DATA_FILE = 'student_health_data.csv'
+# Configuration - Updated paths for new folder structure
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Check if training on uploaded data (from environment variable)
+DATA_FILE = os.environ.get('TRAINING_DATA_FILE', os.path.join(BASE_DIR, 'data', 'student_health_data.csv'))
+OUTPUT_CSV = os.path.join(BASE_DIR, 'data', 'final_subgroup_performance.csv')
+OUTPUT_DIR = os.path.join(BASE_DIR, 'visualizations')
 TRAIN_RATIO = 0.6
 VAL_RATIO = 0.1
 TEST_RATIO = 0.3
 MIN_SUBGROUP_SAMPLES = 3
+
+# Create
+# output directory if it doesn't exist
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 def load_and_prepare_data(filepath):
@@ -223,7 +217,7 @@ def prepare_features(train_df, val_df, test_df):
     print(f"  - Val shape:   {X_val_scaled.shape}")
     print(f"  - Test shape:  {X_test_scaled.shape}")
     
-    return X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, test_groups, train_groups_extended
+    return X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, test_groups, train_groups_extended, scaler, X_train_scaled.columns.tolist()
 
 
 def train_base_models(X_train, y_train, X_val, y_val):
@@ -233,25 +227,23 @@ def train_base_models(X_train, y_train, X_val, y_val):
     print("=" * 80)
     
     # Random Forest
-    print("\n[1/3] Training Random Forest...")
-    rf_model = RandomForestClassifier(
+    print("\n[1/4] Training Random Forest...")
+    base_rf = RandomForestClassifier(
         n_estimators=200,
-        max_depth=12,
-        min_samples_split=3,
+        max_depth=10,
+        min_samples_leaf=2,
         random_state=RANDOM_STATE,
-        n_jobs=-1,
         class_weight='balanced'
     )
+    # Calibrate RF probabilities for better reliability
+    rf_model = CalibratedClassifierCV(base_rf, cv=3, method='isotonic')
     rf_model.fit(X_train, y_train)
-    # Calibrate RF probabilities for better stacking inputs
-    rf_calibrated = CalibratedClassifierCV(rf_model, cv=3, method='isotonic')
-    rf_calibrated.fit(X_train, y_train)
-    rf_val_pred = rf_calibrated.predict(X_val)
-    rf_val_proba = rf_calibrated.predict_proba(X_val)[:, 1]
+    rf_val_pred = rf_model.predict(X_val)
+    rf_val_proba = rf_model.predict_proba(X_val)[:, 1]
     print(f"✓ RF - Acc: {accuracy_score(y_val, rf_val_pred):.4f} | F1: {f1_score(y_val, rf_val_pred):.4f}")
     
     # SVM
-    print("\n[2/3] Training SVM...")
+    print("\n[2/4] Training SVM...")
     base_svm = SVC(
         kernel='rbf',
         C=1.0,
@@ -268,14 +260,16 @@ def train_base_models(X_train, y_train, X_val, y_val):
     print(f"✓ SVM - Acc: {accuracy_score(y_val, svm_val_pred):.4f} | F1: {f1_score(y_val, svm_val_pred):.4f}")
     
     # MLP
-    print("\n[3/3] Training MLP Neural Network...")
-    mlp_model = MLPClassifier(
+    print("\n[3/4] Training MLP Neural Network...")
+    base_mlp = MLPClassifier(
         hidden_layer_sizes=(64, 32),
         activation='relu',
         solver='adam',
         max_iter=500,
         random_state=RANDOM_STATE
     )
+    # Calibrate MLP probabilities
+    mlp_model = CalibratedClassifierCV(base_mlp, cv=3, method='sigmoid')
     mlp_model.fit(X_train, y_train)
     mlp_val_pred = mlp_model.predict(X_val)
     mlp_val_proba = mlp_model.predict_proba(X_val)[:, 1]
@@ -296,7 +290,7 @@ def train_base_models(X_train, y_train, X_val, y_val):
     hgb_val_proba = hgb_calibrated.predict_proba(X_val)[:, 1]
     print(f"✓ HGB - Acc: {accuracy_score(y_val, hgb_val_pred):.4f} | F1: {f1_score(y_val, hgb_val_pred):.4f}")
 
-    return rf_calibrated, svm_model, mlp_model, hgb_calibrated, (rf_val_proba, svm_val_proba, mlp_val_proba, hgb_val_proba)
+    return rf_model, svm_model, mlp_model, hgb_calibrated, (rf_val_proba, svm_val_proba, mlp_val_proba, hgb_val_proba)
 
 
 def train_stacking_ensemble(rf_model, svm_model, mlp_model, hgb_model, X_train, y_train, X_val, y_val, val_probas, train_groups):
@@ -306,8 +300,9 @@ def train_stacking_ensemble(rf_model, svm_model, mlp_model, hgb_model, X_train, 
     print("=" * 80)
     
     # Create meta-features
-    # Build meta-train with 4 base models
+    # Build meta-train with 4 base models (RF from health.py, SVM, MLP, HGB)
     rf_tr = rf_model.predict_proba(X_train)[:, 1]
+    
     svm_tr = svm_model.predict_proba(X_train)[:, 1]
     mlp_tr = mlp_model.predict_proba(X_train)[:, 1]
     try:
@@ -350,11 +345,8 @@ def train_stacking_ensemble(rf_model, svm_model, mlp_model, hgb_model, X_train, 
 def tune_subgroup_thresholds(meta_model, rf_model, svm_model, mlp_model, hgb_model, X_val, y_val, val_df):
     """Tune per-subgroup thresholds on validation to maximize F1."""
     # Build meta-features for validation
-    try:
-        rf_val_proba = rf_model.predict_proba(X_val)[:, 1]
-    except Exception:
-        rf_val_proba = rf_model.decision_function(X_val)
-        rf_val_proba = (rf_val_proba - rf_val_proba.min()) / (rf_val_proba.ptp() + 1e-9)
+    rf_val_proba = rf_model.predict_proba(X_val)[:, 1]
+    
     svm_val_proba = svm_model.predict_proba(X_val)[:, 1]
     mlp_val_proba = mlp_model.predict_proba(X_val)[:, 1]
     try:
@@ -390,6 +382,7 @@ def evaluate_on_test(rf_model, svm_model, mlp_model, hgb_model, meta_model, X_te
     
     # Base model predictions
     rf_test_proba = rf_model.predict_proba(X_test)[:, 1]
+    
     svm_test_proba = svm_model.predict_proba(X_test)[:, 1]
     mlp_test_proba = mlp_model.predict_proba(X_test)[:, 1]
     try:
@@ -632,28 +625,59 @@ def visualize_subgroups(subgroup_df, output_file='subgroup_analysis.png'):
             pass
     
     plt.tight_layout()
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"✓ Visualizations saved to: {output_file}")
+    output_path = os.path.join(OUTPUT_DIR, os.path.basename(output_file))
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"✓ Visualizations saved to: {output_path}")
     plt.close()
 
 
-def save_results(subgroup_df, output_prefix='results'):
+def save_results(subgroup_df, output_prefix='final'):
     """Save analysis results to CSV files."""
     print(f"\n💾 Saving results...")
     
     if subgroup_df is not None and not subgroup_df.empty:
-        subgroup_df.to_csv(f'{output_prefix}_subgroup_performance.csv', index=False)
-        print(f"✓ Subgroup results saved to: {output_prefix}_subgroup_performance.csv")
+        output_path = os.path.join(BASE_DIR, 'data', f'{output_prefix}_subgroup_performance.csv')
+        subgroup_df.to_csv(output_path, index=False)
+        print(f"✓ Subgroup results saved to: {output_path}")
     
     print(f"✓ All results saved successfully!")
+
+
+def save_model(meta_model, rf_model, svm_model, mlp_model, hgb_model, scaler, feature_columns, threshold=0.5):
+    """Save trained model and preprocessing objects for future predictions."""
+    import pickle
+    
+    print(f"\n💾 Saving trained model...")
+    
+    model_dir = os.path.join(BASE_DIR, 'models')
+    os.makedirs(model_dir, exist_ok=True)
+    
+    model_info = {
+        'model': meta_model,
+        'base_models': {
+            'rf': rf_model,
+            'svm': svm_model,
+            'mlp': mlp_model,
+            'hgb': hgb_model
+        },
+        'scaler': scaler,
+        'feature_columns': feature_columns,
+        'threshold': threshold
+    }
+    
+    model_path = os.path.join(model_dir, 'stacking_ensemble.pkl')
+    with open(model_path, 'wb') as f:
+        pickle.dump(model_info, f)
+    
+    print(f"✓ Model saved to: {model_path}")
+    print(f"   Features: {len(feature_columns)}")
+    print(f"   Threshold: {threshold:.3f}")
 
 
 def main():
     """Main pipeline execution."""
     print("\n" + "=" * 80)
     print("HEALTH PREDICTION PIPELINE - STACKING ENSEMBLE")
-    print("=" * 80)
-    print("Forschungsfrage: Gleichwertige Vorhersageleistung in Subgruppen?")
     print("=" * 80)
     
     # Step 1: Load and prepare data
@@ -666,7 +690,7 @@ def main():
     train_df, val_df, test_df = subgroup_aware_split(df, TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
     
     # Step 4: Prepare features
-    X_train, X_val, X_test, y_train, y_val, y_test, test_groups, train_groups = prepare_features(train_df, val_df, test_df)
+    X_train, X_val, X_test, y_train, y_val, y_test, test_groups, train_groups, scaler, feature_columns = prepare_features(train_df, val_df, test_df)
     
     # Step 5: Train base models
     rf_model, svm_model, mlp_model, hgb_model, val_probas = train_base_models(X_train, y_train, X_val, y_val)
@@ -685,6 +709,9 @@ def main():
     # Step 9: Visualize and save
     visualize_subgroups(subgroup_df, 'subgroup_analysis.png')
     save_results(subgroup_df, 'final')
+    
+    # Step 10: Save trained model for future predictions
+    save_model(meta_model, rf_model, svm_model, mlp_model, hgb_model, scaler, feature_columns, global_thr)
     
     print("\n" + "=" * 80)
     print("✅ PIPELINE COMPLETED SUCCESSFULLY!")

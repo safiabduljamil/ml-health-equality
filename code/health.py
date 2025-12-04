@@ -27,8 +27,10 @@ RANDOM_SEED = 42
 TEST_SIZE = 0.3
 N_SPLITS_CV = 5
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, "student_health_data.csv")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_FILE = os.path.join(BASE_DIR, "data", "student_health_data.csv")
+MODEL_FILE = None  # No longer persisting standalone RF to avoid duplication
+RF_RESULTS_CSV = None  # Skip saving RF-only CSV
 
 # =============================================================================
 # Schritt 1: Daten laden und validieren
@@ -98,16 +100,16 @@ logging.info("Schritt 3: Explorative Datenanalyse (EDA)")
 plt.figure(figsize=(8, 5))
 sns.countplot(x=target, data=df, order=['Low', 'Medium', 'High'])
 plt.title("Verteilung der Gesundheitskategorien")
-plt.savefig("health_category_distribution.png")
-plt.show()
+plt.savefig(os.path.join(BASE_DIR, "visualizations", "health_category_distribution.png"))
+plt.close()
 
 # Verteilung der Gesundheitskategorien pro Subgruppe (Geschlecht & Schlafdauer)
 plt.figure(figsize=(12, 7))
 sns.catplot(data=df, x='Sleep Category', hue='Gender', col=target, kind='count', 
             col_wrap=3, order=['Short', 'Normal', 'Long'], height=4, aspect=0.8)
 plt.suptitle("Verteilung der Gesundheitskategorien nach Subgruppen", y=1.02)
-plt.savefig("subgroup_distribution.png")
-plt.show()
+plt.savefig(os.path.join(BASE_DIR, "visualizations", "subgroup_distribution.png"))
+plt.close()
 
 # =============================================================================
 # Schritt 4: Datenvorverarbeitung für das Modell
@@ -230,6 +232,8 @@ results_df = pd.DataFrame(subgroup_results)
 logging.info("Schritt 8: Visualisierung der Subgruppen-Ergebnisse")
 
 if not results_df.empty:
+    # Ensure visualizations directory exists
+    os.makedirs(os.path.join(BASE_DIR, "visualizations"), exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
     fig.suptitle('Vergleich der Modellleistung über Subgruppen', fontsize=16)
 
@@ -250,8 +254,8 @@ if not results_df.empty:
     axes[1].legend(title='Geschlecht')
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig("subgroup_performance_comparison.png")
-    plt.show()
+    plt.savefig(os.path.join(BASE_DIR, "visualizations", "subgroup_performance_comparison.png"))
+    plt.close()
 else:
     logging.warning("Keine Subgruppen-Ergebnisse zum Visualisieren vorhanden.")
 
@@ -266,5 +270,14 @@ else:
 # das Modell Schwierigkeiten hat, für eine bestimmte Gruppe zu generalisieren.
 # Diese Erkenntnisse sind zentral für das Kapitel "Diskussion" im Bericht.
 logging.info("Prozess abgeschlossen. Ergebnisse können nun für den Bericht verwendet werden.")
+
+# =============================================================================
+# Schritt 10: Ergebnisse speichern (RF Modell und Subgruppenleistung)
+# =============================================================================
+try:
+    # Skip persistence to keep project lean
+    logging.info("RF persistence skipped (no model/CSV saved).")
+except Exception as e:
+    logging.error(f"Fehler beim Überspringen der Speicherung: {e}")
 
 
