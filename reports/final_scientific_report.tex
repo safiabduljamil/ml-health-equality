@@ -41,7 +41,7 @@ Diese zentrale Forschungsfrage adressiert die Fairness des Modells über demogra
 \section{Methodik}
 
 \subsection{Datensatz und Features}
-\textbf{Datensatz:} 100 chronologisch sortierte Studierenden-Beobachtungen (5-Minuten-Intervalle) mit demografischen (Alter, Gender), physiologischen (Herzfrequenz, Blutdruck, Körpertemperatur, Blutsauerstoff) und verhaltensbezogenen Features (Aktivität, Schlaf, Stress, Hydration). \textbf{Zielvariable:} Overall Health Score binär (>80 = High, $\leq$80 = Low).
+\textbf{Datensatz:} 100 chronologisch sortierte Studierenden-Beobachtungen (5-Minuten-Intervalle) aus dem Biosensor Student Health \& Fitness Dataset \cite{ziya2024} mit demografischen (Alter, Gender), physiologischen (Herzfrequenz, Blutdruck, Körpertemperatur, Blutsauerstoff) und verhaltensbezogenen Features (Aktivität, Schlaf, Stress, Hydration). \textbf{Zielvariable:} Overall Health Score binär (>80 = High, $\leq$80 = Low).
 
 \textbf{Feature Engineering:} Rolling Statistics über 30-Minuten-Fenster: Mean und Std für Herzfrequenz und Aktivitätslevel. Schlafkategorisierung: Short (<6h), Normal (6-8h), Long (>8h). Subgruppen-Feature: Gender\_Sleep\_Group (z.B., "Male\_Normal").
 
