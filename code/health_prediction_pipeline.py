@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, classification_report
 from imblearn.over_sampling import SMOTE
+from skopt import BayesSearchCV
+from skopt.space import Real, Integer, Categorical
 import warnings
 import os
 warnings.filterwarnings('ignore')
@@ -221,70 +223,117 @@ def prepare_features(train_df, val_df, test_df):
 
 
 def train_base_models(X_train, y_train, X_val, y_val):
-    """Train base models (RF, SVM, MLP, HGB) with probability calibration where helpful."""
+    """Train base models (RF, SVM, MLP, HGB) with Bayesian Optimization and probability calibration."""
     print("\n" + "=" * 80)
-    print("TRAINING BASE MODELS (LEVEL-0)")
+    print("TRAINING BASE MODELS WITH BAYESIAN OPTIMIZATION (LEVEL-0)")
     print("=" * 80)
     
-    # Random Forest
-    print("\n[1/4] Training Random Forest...")
-    base_rf = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=10,
-        min_samples_leaf=2,
+    # Random Forest with Bayesian Optimization
+    print("\n[1/4] Optimizing Random Forest with Bayesian Search...")
+    rf_search_space = {
+        'n_estimators': Integer(100, 300),
+        'max_depth': Integer(5, 15),
+        'min_samples_leaf': Integer(1, 4),
+        'min_samples_split': Integer(2, 6),
+        'max_features': Categorical(['sqrt', 'log2'])
+    }
+    base_rf = RandomForestClassifier(random_state=RANDOM_STATE, class_weight='balanced')
+    rf_bayes = BayesSearchCV(
+        base_rf,
+        rf_search_space,
+        n_iter=20,
+        cv=3,
+        scoring='f1',
+        n_jobs=-1,
         random_state=RANDOM_STATE,
-        class_weight='balanced'
+        verbose=0
     )
+    rf_bayes.fit(X_train, y_train)
+    print(f"  Best RF params: {rf_bayes.best_params_}")
     # Calibrate RF probabilities for better reliability
-    rf_model = CalibratedClassifierCV(base_rf, cv=3, method='isotonic')
+    rf_model = CalibratedClassifierCV(rf_bayes.best_estimator_, cv=3, method='isotonic')
     rf_model.fit(X_train, y_train)
     rf_val_pred = rf_model.predict(X_val)
     rf_val_proba = rf_model.predict_proba(X_val)[:, 1]
     print(f"✓ RF - Acc: {accuracy_score(y_val, rf_val_pred):.4f} | F1: {f1_score(y_val, rf_val_pred):.4f}")
     
-    # SVM
-    print("\n[2/4] Training SVM...")
-    base_svm = SVC(
-        kernel='rbf',
-        C=1.0,
-        gamma='scale',
-        probability=True,
+    # SVM with Bayesian Optimization
+    print("\n[2/4] Optimizing SVM with Bayesian Search...")
+    svm_search_space = {
+        'C': Real(0.1, 10.0, prior='log-uniform'),
+        'gamma': Real(0.001, 1.0, prior='log-uniform'),
+        'kernel': Categorical(['rbf', 'poly'])
+    }
+    base_svm = SVC(probability=True, random_state=RANDOM_STATE, class_weight='balanced')
+    svm_bayes = BayesSearchCV(
+        base_svm,
+        svm_search_space,
+        n_iter=15,
+        cv=3,
+        scoring='f1',
+        n_jobs=-1,
         random_state=RANDOM_STATE,
-        class_weight='balanced'
+        verbose=0
     )
+    svm_bayes.fit(X_train, y_train)
+    print(f"  Best SVM params: {svm_bayes.best_params_}")
     # Calibrate SVM probabilities on validation via cross-validation
-    svm_model = CalibratedClassifierCV(base_svm, cv=3, method='sigmoid')
+    svm_model = CalibratedClassifierCV(svm_bayes.best_estimator_, cv=3, method='sigmoid')
     svm_model.fit(X_train, y_train)
     svm_val_pred = svm_model.predict(X_val)
     svm_val_proba = svm_model.predict_proba(X_val)[:, 1]
     print(f"✓ SVM - Acc: {accuracy_score(y_val, svm_val_pred):.4f} | F1: {f1_score(y_val, svm_val_pred):.4f}")
     
-    # MLP
-    print("\n[3/4] Training MLP Neural Network...")
-    base_mlp = MLPClassifier(
-        hidden_layer_sizes=(64, 32),
-        activation='relu',
-        solver='adam',
-        max_iter=500,
-        random_state=RANDOM_STATE
+    # MLP with Bayesian Optimization
+    print("\n[3/4] Optimizing MLP Neural Network with Bayesian Search...")
+    mlp_search_space = {
+        'alpha': Real(0.0001, 0.01, prior='log-uniform'),
+        'learning_rate_init': Real(0.001, 0.01, prior='log-uniform')
+    }
+    # Pre-define architecture since tuple parameters cause issues with skopt
+    base_mlp = MLPClassifier(hidden_layer_sizes=(64, 32), activation='relu', solver='adam', max_iter=500, random_state=RANDOM_STATE)
+    mlp_bayes = BayesSearchCV(
+        base_mlp,
+        mlp_search_space,
+        n_iter=10,
+        cv=3,
+        scoring='f1',
+        n_jobs=-1,
+        random_state=RANDOM_STATE,
+        verbose=0
     )
+    mlp_bayes.fit(X_train, y_train)
+    print(f"  Best MLP params: {mlp_bayes.best_params_}")
     # Calibrate MLP probabilities
-    mlp_model = CalibratedClassifierCV(base_mlp, cv=3, method='sigmoid')
+    mlp_model = CalibratedClassifierCV(mlp_bayes.best_estimator_, cv=3, method='sigmoid')
     mlp_model.fit(X_train, y_train)
     mlp_val_pred = mlp_model.predict(X_val)
     mlp_val_proba = mlp_model.predict_proba(X_val)[:, 1]
     print(f"✓ MLP - Acc: {accuracy_score(y_val, mlp_val_pred):.4f} | F1: {f1_score(y_val, mlp_val_pred):.4f}")
     
-    # HistGradientBoosting (robust to imbalance and non-linearities)
-    print("\n[4/4] Training HistGradientBoosting...")
-    hgb_model = HistGradientBoostingClassifier(
-        learning_rate=0.1,
-        max_depth=6,
-        random_state=RANDOM_STATE
+    # HistGradientBoosting with Bayesian Optimization
+    print("\n[4/4] Optimizing HistGradientBoosting with Bayesian Search...")
+    hgb_search_space = {
+        'learning_rate': Real(0.01, 0.3, prior='log-uniform'),
+        'max_depth': Integer(3, 10),
+        'max_iter': Integer(50, 150),
+        'min_samples_leaf': Integer(10, 30)
+    }
+    base_hgb = HistGradientBoostingClassifier(random_state=RANDOM_STATE)
+    hgb_bayes = BayesSearchCV(
+        base_hgb,
+        hgb_search_space,
+        n_iter=15,
+        cv=3,
+        scoring='f1',
+        n_jobs=-1,
+        random_state=RANDOM_STATE,
+        verbose=0
     )
-    hgb_model.fit(X_train, y_train)
+    hgb_bayes.fit(X_train, y_train)
+    print(f"  Best HGB params: {hgb_bayes.best_params_}")
     # Calibrate HGB probabilities (supports predict_proba)
-    hgb_calibrated = CalibratedClassifierCV(hgb_model, cv=3, method='isotonic')
+    hgb_calibrated = CalibratedClassifierCV(hgb_bayes.best_estimator_, cv=3, method='isotonic')
     hgb_calibrated.fit(X_train, y_train)
     hgb_val_pred = hgb_calibrated.predict(X_val)
     hgb_val_proba = hgb_calibrated.predict_proba(X_val)[:, 1]

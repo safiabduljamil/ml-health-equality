@@ -7,26 +7,49 @@
 \usepackage{apacite}
 \usepackage[margin=1.5cm]{geometry}
 \usepackage{float}
-\setlength{\columnsep}{0.6cm}
-\setlength{\parskip}{2pt}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue,
+    breaklinks=true
+}
+\usepackage[font=small,labelfont=bf,skip=1pt,position=bottom]{caption}
+\captionsetup{format=plain,justification=justified,singlelinecheck=true}
+\setlength{\columnsep}{0.5cm}
+\setlength{\parskip}{0pt}
 \setlength{\parindent}{0pt}
+\setlength{\textfloatsep}{2pt plus 1pt minus 1pt}
+\setlength{\floatsep}{2pt plus 1pt minus 1pt}
+\setlength{\intextsep}{2pt plus 1pt minus 1pt}
+\setlength{\abovecaptionskip}{1pt}
+\setlength{\belowcaptionskip}{0pt}
+\setlength{\abovecaptionskip}{0pt}
+\setlength{\belowdisplayskip}{2pt}
+\setlength{\abovedisplayskip}{2pt}
+
+% Reduce section spacing
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{4pt}{2pt}
+\titlespacing*{\subsection}{0pt}{3pt}{1pt}
 
 \renewcommand{\refname}{} % Remove the automatic bibliography heading
 
 \title{\textbf{Fairness-Analyse eines Stacking-Ensemble-Modells für Gesundheitsvorhersage}}
-\author{Abdul Jamil Safi, Ola Hamza}
+\author{Ola Hamza, Abdul Jamil Safi}
 \date{Dezember 2025}
 
 \begin{document}
 
 \maketitle
-\vspace{-8pt}
+\vspace{-12pt}
 
 \begin{abstract}
 \small
-Diese Arbeit untersucht die Fairness eines Stacking-Ensemble-Modells (RF, SVM, MLP, HGB) zur Gesundheitsvorhersage bei Studierenden. Das Modell erreicht F1=0.81 (Std 0.092) und zeigt akzeptable Fairness über sechs Subgruppen (Gender × Schlaf) bei relaxierten Kriterien (Std F1 $<$ 0.10 für $n \geq 6$).
+Diese Arbeit untersucht die Fairness eines Stacking-Ensemble-Modells (RF, SVM, MLP, HGB) zur Gesundheitsvorhersage bei Studierenden. Das Modell erreicht F1=0.83 (Std 0.083) und zeigt akzeptable Fairness über sechs Subgruppen (Gender × Schlaf) bei relaxierten Kriterien (Std F1 $<$ 0.10 für $n \geq 6$).
 \end{abstract}
-\vspace{-5pt}
+\vspace{-3pt}
 
 \section{Einleitung}
 Machine Learning in der Gesundheitsvorhersage erfordert Fairness über demografische Gruppen \cite{obermeyer2019}. Studien zeigen systematische Verzerrungen in KI-Systemen, die benachteiligte Gruppen diskriminieren. Diese Arbeit untersucht, ob ein Ensemble-Modell gleichwertige Performance über Subgruppen erzielt.
@@ -46,15 +69,17 @@ Diese zentrale Forschungsfrage adressiert die Fairness des Modells über demogra
 \textbf{Feature Engineering:} Rolling Statistics über 30-Minuten-Fenster: Mean und Std für Herzfrequenz und Aktivitätslevel. Schlafkategorisierung: Short (<6h), Normal (6-8h), Long (>8h). Subgruppen-Feature: Gender\_Sleep\_Group (z.B., "Male\_Normal").
 
 \subsection{Modellarchitektur}
-\textbf{Stacking-Ensemble} mit 4 kalibrierten Basismodellen:
+\textbf{Stacking-Ensemble} mit 4 kalibrierten Basismodellen, optimiert via Bayesian Optimization:
 \begin{itemize}
-\item \textbf{Random Forest:} 200 Bäume, max\_depth=10, class\_weight='balanced', mit CalibratedClassifierCV (isotonic)
-\item \textbf{SVM:} RBF-Kernel, C=1.0, mit CalibratedClassifierCV (sigmoid)
-\item \textbf{MLP:} (64,32) Schichten, ReLU, Adam, mit CalibratedClassifierCV (sigmoid)
-\item \textbf{HGB:} max\_iter=100, learning\_rate=0.1, mit CalibratedClassifierCV (isotonic)
+\item \textbf{Random Forest:} Bayesian Search über n\_estimators (100-300), max\_depth (5-15), min\_samples\_leaf (1-4), mit CalibratedClassifierCV (isotonic)
+\item \textbf{SVM:} Bayesian Search über C (0.1-10.0), gamma (0.001-1.0), kernel (rbf/poly), mit CalibratedClassifierCV (sigmoid)
+\item \textbf{MLP:} Bayesian Search über hidden\_layers, activation (relu/tanh), alpha, learning\_rate, mit CalibratedClassifierCV (sigmoid)
+\item \textbf{HGB:} Bayesian Search über learning\_rate (0.01-0.3), max\_depth (3-10), max\_iter (50-150), mit CalibratedClassifierCV (isotonic)
 \end{itemize}
 
 \textbf{Meta-Modell:} Logistic Regression mit inverse Subgruppen-Gewichten, C=1.0, class\_weight='balanced'.
+
+\textbf{Hyperparameter-Optimierung:} Bayesian Optimization (BayesSearchCV, scikit-optimize) wurde für alle Level-0-Modelle eingesetzt. Diese Methode ist effizienter als Grid/Random Search, da sie eine probabilistische Surrogatfunktion (Gaussian Process) nutzt, um vielversprechende Hyperparameter-Regionen gezielt zu explorieren. Jedes Modell durchlief 15-20 Iterationen mit 3-facher Kreuzvalidierung zur F1-Score-Maximierung.
 
 \textbf{Fairness-Techniken:} SMOTE-Balancierung, Wahrscheinlichkeitskalibrierung, per-subgroup Threshold-Tuning (0.1-0.9, Schritt 0.02), Sample-Gewichtung (inverse Gruppengröße).
 
@@ -77,7 +102,7 @@ Tabelle \ref{tab:performance} zeigt die detaillierte Performance über alle sech
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{figures/performance_table.png}
-\caption{Subgruppen-Performance mit allen Metriken (ROC-AUC, True High Health \%)}
+\caption{Detaillierte Performance-Metriken nach Subgruppen (Gender × Schlafkategorie). Die Tabelle zeigt Stichprobengröße, optimale Threshold-Werte, Accuracy, F1-Score, ROC-AUC und Anteil positiver Klasse für jede Subgruppe.}
 \label{tab:performance}
 \end{figure}
 
@@ -87,22 +112,29 @@ Tabelle \ref{tab:performance} zeigt die detaillierte Performance über alle sech
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/f1_by_subgroup.png}
-\caption{F1-Score nach Subgruppe (gr\"un$\geq$0.8, orange 0.6-0.8, rot<0.6)}
+\includegraphics[width=0.9\linewidth]{figures/f1_by_subgroup.png}
+\caption{F1-Score-Verteilung nach Subgruppen. Farbcodierung: Grün (F1 $>$ 0.85), Gelb (0.75-0.85), Rot ($<$ 0.75). Female\_Normal zeigt höchste Performance (0.91), Male\_Short niedrigste (0.67).}
 \label{fig:f1_subgroup}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/size_vs_f1.png}
-\caption{Korrelation zwischen Stichprobengröße und F1-Score}
+\includegraphics[width=0.9\linewidth]{figures/rf_subgroup_analysis.png}
+\caption{Vergleichende Subgruppenanalyse des Random Forest Modells. Links: Accuracy-Werte nach Gender und Schlafkategorie. Rechts: Entsprechende F1-Scores. Normal-Sleeper zeigen konsistent höhere Performance als Short-Sleeper.}
+\label{fig:rf_subgroup}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/size_vs_f1.png}
+\caption{Zusammenhang zwischen Stichprobengröße und F1-Score. Die gestrichelte Linie zeigt den linearen Trend. Größere Subgruppen ($n \geq 6$) erreichen stabilere Performance (F1 > 0.80), während kleinere Gruppen höhere Varianz aufweisen.}
 \label{fig:size_f1}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/f1_vs_accuracy.png}
-\caption{F1-Score vs. Accuracy mit Subgruppen-Labels}
+\includegraphics[width=0.9\linewidth]{figures/f1_vs_accuracy.png}
+\caption{Vergleich von F1-Score und Accuracy über alle Subgruppen. Punkte repräsentieren einzelne Subgruppen. Die diagonale Referenzlinie zeigt perfekte Übereinstimmung. Abweichungen indizieren unterschiedliche Klassenverteilungen.}
 \label{fig:f1_acc}
 \end{figure}
 
@@ -114,11 +146,13 @@ Abbildung \ref{fig:size_f1} bestätigt die positive Korrelation zwischen Stichpr
 
 Abbildung \ref{fig:f1_acc} verdeutlicht das Trade-off zwischen Metriken: Hohe F1-Scores korrelieren nicht immer mit hoher Accuracy, was auf unterschiedliche Klassenverteilungen in Subgruppen hindeutet.
 
+Die Random Forest Subgruppenanalyse (Abbildung \ref{fig:rf_subgroup}) zeigt konsistente Muster über Geschlechter und Schlafkategorien. Beide Metriken (Accuracy und F1-Score) variieren zwischen Subgruppen, wobei die Normal-Schlafkategorie tendenziell bessere Performance zeigt als Short-Sleeper.
+
 \textbf{Fairness-Strategien:} SMOTE generierte synthetische Minderheitsklassen-Beispiele, was die Klassenbalance verbesserte. CalibratedClassifierCV mit isotonic (RF, HGB) und sigmoid (SVM, MLP) Regression lieferte reliable Wahrscheinlichkeitsschätzungen. Per-subgroup Threshold-Tuning optimierte F1-Scores individuell (0.40 für Male\_Normal, 0.50 für andere), jedoch bleibt ROC-AUC=0.48 suboptimal.
 
 \textbf{Interpretation:} Die Ergebnisse zeigen, dass Fairness stark von Datenverfügbarkeit abhängt. Subgruppen mit $n\geq 6$ erreichen Std F1=0.091, während kleinere Gruppen durch Overfitting und unzureichende Repräsentation leiden. Das Modell erfüllt somit realistische, aber nicht ideale Fairness-Anforderungen.
 
-\textbf{Limitationen:} Kleiner Datensatz (n=100) begrenzt statistische Power. Temporale Features nur 30-Min-Fenster, keine Lag-Features. Keine Bayesian Optimization für Hyperparameter. Fehlende Long-Sleep-Kategorie in Test-Daten.
+\textbf{Limitationen:} Kleiner Datensatz (n=100) begrenzt statistische Power. Fehlende Long-Sleep-Kategorie in Test-Daten aufgrund der chronologischen Aufteilung.
 
 \textbf{Praktische Implikationen:} Das Modell eignet sich für explorative Analysen, jedoch nicht für klinische Entscheidungen ohne weitere Validierung. Größere Datenmengen (n>20 pro Subgruppe) würden Fairness signifikant verbessern.
 
@@ -126,12 +160,12 @@ Abbildung \ref{fig:f1_acc} verdeutlicht das Trade-off zwischen Metriken: Hohe F1
 
 Das Stacking-Ensemble zeigt vernünftige Fairness über demografische Subgruppen bei relaxierten Kriterien (Std F1<0.10 für $n\geq 6$). Die Kombination aus SMOTE, Kalibrierung und per-subgroup Thresholds adressiert Fairness-Herausforderungen teilweise erfolgreich. Größere Gruppen profitieren von stabilerer Performance, während kleinere Gruppen höhere Varianz aufweisen.
 
-\textbf{Zukünftige Arbeiten:} (1) Erweiterte temporale Features: Lag-Features über mehrere Zeitpunkte, LSTM/GRU für Sequenzmodellierung. (2) Hyperparameter-Optimierung: Bayesian Optimization mit Fairness-Constraints. (3) Erweiterte Kalibrierungstechniken: Venn-ABERS Predictors, Temperature Scaling. (4) Größere Datensätze: Mindestens n=50 pro Subgruppe für robuste Evaluation. (5) Externe Validierung: Test auf unabhängigen Kohorten zur Generalisierungsprüfung.
+\textbf{Zukünftige Arbeiten:} (1) Erweiterte temporale Features: Multi-Step Lag-Features, LSTM/GRU für Sequenzmodellierung. (2) Erweiterte Kalibrierungstechniken: Venn-ABERS Predictors, Temperature Scaling. (3) Größere Datensätze: Mindestens n=50 pro Subgruppe für robuste Evaluation. (4) Externe Validierung: Test auf unabhängigen Kohorten zur Generalisierungsprüfung. (5) Fairness-Constraints: Integration von Fairness-Metriken direkt in die Optimierungsfunktion.
+
+\textbf{Code-Verfügbarkeit:} Der vollständige Quellcode, das trainierte Modell, die Daten und das interaktive Dashboard sind öffentlich verfügbar unter: \url{https://github.com/safiabduljamil/ml-health-equality}
 
 \section{Literatur}
-\vspace{-15pt}
-
-
+\vspace{-10pt}
 \bibliographystyle{apacite}
 \renewcommand{\refname}{}   
 \bibliography{references}

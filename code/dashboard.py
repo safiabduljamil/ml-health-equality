@@ -148,6 +148,201 @@ with tab1:
             except Exception as e:
                 st.error(f"Failed to render F1 vs Accuracy: {e}")
 
+        # Random Forest Visualizations (generated directly from health.py logic)
+        st.subheader("Random Forest Model Analysis")
+        st.caption("Generated from health.py - Random Forest subgroup analysis with feature engineering")
+        
+        if st.button("🔄 Generate RF Visualizations", key="gen_rf_viz"):
+            with st.spinner("Running Random Forest analysis..."):
+                try:
+                    # Load and prepare data (same as health.py)
+                    from sklearn.model_selection import train_test_split, GridSearchCV, KFold
+                    from sklearn.preprocessing import StandardScaler, OneHotEncoder
+                    from sklearn.compose import ColumnTransformer
+                    from sklearn.pipeline import Pipeline
+                    from sklearn.ensemble import RandomForestClassifier
+                    from sklearn.metrics import classification_report, f1_score, accuracy_score
+                    
+                    RANDOM_SEED = 42
+                    TEST_SIZE = 0.3
+                    N_SPLITS_CV = 5
+                    
+                    # Load data
+                    df_rf = pd.read_csv(TRAINING_DATA_FILE)
+                    
+                    # Categorize health score
+                    def categorize_health_score(score):
+                        if score <= 75:
+                            return "Low"
+                        elif score <= 90:
+                            return "Medium"
+                        else:
+                            return "High"
+                    
+                    df_rf['Health Score Category'] = df_rf['Overall Health Score'].apply(categorize_health_score)
+                    
+                    # Categorize sleep duration
+                    def categorize_sleep(hours):
+                        if hours < 6:
+                            return "Short"
+                        elif hours <= 8:
+                            return "Normal"
+                        else:
+                            return "Long"
+                    
+                    df_rf['Sleep Category'] = df_rf['Sleep Duration (hours)'].apply(categorize_sleep)
+                    
+                    # 1. Health Category Distribution
+                    st.caption("Health Category Distribution")
+                    fig1, ax1 = plt.subplots(figsize=(8, 5))
+                    category_counts = df_rf['Health Score Category'].value_counts()
+                    order = ['Low', 'Medium', 'High']
+                    counts_ordered = [category_counts.get(cat, 0) for cat in order]
+                    ax1.bar(order, counts_ordered, color=['#e74c3c', '#f39c12', '#2ecc71'], alpha=0.8)
+                    ax1.set_xlabel('Health Category')
+                    ax1.set_ylabel('Count')
+                    ax1.set_title('Verteilung der Gesundheitskategorien')
+                    ax1.grid(axis='y', alpha=0.3)
+                    st.pyplot(fig1)
+                    plt.close(fig1)
+                    
+                    # 2. Subgroup Distribution
+                    st.caption("Subgroup Distribution (Gender × Sleep Category)")
+                    fig2 = plt.figure(figsize=(14, 4))
+                    categories = ['Low', 'Medium', 'High']
+                    sleep_order = ['Short', 'Normal', 'Long']
+                    
+                    for idx, category in enumerate(categories, 1):
+                        ax = fig2.add_subplot(1, 3, idx)
+                        subset = df_rf[df_rf['Health Score Category'] == category]
+                        
+                        gender_sleep = subset.groupby(['Sleep Category', 'Gender']).size().unstack(fill_value=0)
+                        gender_sleep = gender_sleep.reindex(sleep_order, fill_value=0)
+                        
+                        gender_sleep.plot(kind='bar', ax=ax, color=['#3498db', '#e91e63', '#9c27b0'], alpha=0.8)
+                        ax.set_title(f'{category} Health')
+                        ax.set_xlabel('Sleep Category')
+                        ax.set_ylabel('Count')
+                        ax.legend(title='Gender', loc='upper right')
+                        ax.grid(axis='y', alpha=0.3)
+                        ax.tick_params(axis='x', rotation=0)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig2)
+                    plt.close(fig2)
+                    
+                    # 3. Train RF and show subgroup performance
+                    st.caption("Random Forest: Subgroup Performance Comparison")
+                    
+                    # Define features and target
+                    numerical_features = ["Physical Activity Level (METs)", "Stress Level (1-10)", 
+                                        "Heart Rate (bpm)", "Body Temperature (°C)"]
+                    categorical_features = ["Gender"]
+                    features = numerical_features + categorical_features
+                    target = "Health Score Category"
+                    
+                    # Prepare data
+                    required_cols = features + ["Overall Health Score", "Sleep Duration (hours)"]
+                    data_rf = df_rf[required_cols + [target, 'Sleep Category']].dropna()
+                    
+                    X_rf = data_rf[features]
+                    y_rf = data_rf[target]
+                    
+                    # Split data
+                    X_train_rf, X_test_rf, y_train_rf, y_test_rf = train_test_split(
+                        X_rf, y_rf, test_size=TEST_SIZE, random_state=RANDOM_SEED, stratify=y_rf
+                    )
+                    
+                    # Preprocessing pipeline
+                    preprocessor = ColumnTransformer(
+                        transformers=[
+                            ('num', StandardScaler(), numerical_features),
+                            ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+                        ],
+                        remainder='passthrough'
+                    )
+                    
+                    # Random Forest pipeline
+                    pipeline_rf = Pipeline([
+                        ('preprocessor', preprocessor),
+                        ('classifier', RandomForestClassifier(
+                            n_estimators=200, 
+                            max_depth=10, 
+                            min_samples_leaf=2,
+                            random_state=RANDOM_SEED, 
+                            class_weight='balanced'
+                        ))
+                    ])
+                    
+                    # Train model
+                    pipeline_rf.fit(X_train_rf, y_train_rf)
+                    
+                    # Subgroup analysis
+                    X_test_subgroups = X_test_rf.copy()
+                    X_test_subgroups['Sleep Category'] = data_rf.loc[X_test_rf.index, 'Sleep Category']
+                    X_test_subgroups['Actual Health Category'] = y_test_rf
+                    
+                    subgroups = X_test_subgroups.groupby(['Gender', 'Sleep Category'])
+                    subgroup_results = []
+                    
+                    for (gender, sleep_cat), group_df in subgroups:
+                        if len(group_df) == 0:
+                            continue
+                        
+                        X_sub = group_df[features]
+                        y_sub_true = group_df['Actual Health Category']
+                        y_sub_pred = pipeline_rf.predict(X_sub)
+                        
+                        accuracy = accuracy_score(y_sub_true, y_sub_pred)
+                        f1 = f1_score(y_sub_true, y_sub_pred, average='weighted', zero_division=0)
+                        
+                        subgroup_results.append({
+                            'Gender': gender,
+                            'Sleep Category': sleep_cat,
+                            'Sample Count': len(group_df),
+                            'Accuracy': accuracy,
+                            'F1-Score (weighted)': f1
+                        })
+                    
+                    results_df_rf = pd.DataFrame(subgroup_results)
+                    
+                    if not results_df_rf.empty:
+                        fig3, axes = plt.subplots(1, 2, figsize=(14, 5))
+                        
+                        # Accuracy plot
+                        sns.barplot(data=results_df_rf, x='Accuracy', y='Sleep Category', 
+                                   hue='Gender', ax=axes[0], palette='Set2')
+                        axes[0].set_title('Accuracy pro Subgruppe')
+                        axes[0].set_xlabel('Accuracy')
+                        axes[0].set_ylabel('Schlafkategorie')
+                        axes[0].set_xlim(0, 1)
+                        axes[0].legend(title='Geschlecht')
+                        axes[0].grid(axis='x', alpha=0.3)
+                        
+                        # F1-Score plot
+                        sns.barplot(data=results_df_rf, x='F1-Score (weighted)', y='Sleep Category', 
+                                   hue='Gender', ax=axes[1], palette='Set2')
+                        axes[1].set_title('Gewichteter F1-Score pro Subgruppe')
+                        axes[1].set_xlabel('F1-Score (weighted)')
+                        axes[1].set_ylabel('')
+                        axes[1].set_xlim(0, 1)
+                        axes[1].legend(title='Geschlecht')
+                        axes[1].grid(axis='x', alpha=0.3)
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig3)
+                        plt.close(fig3)
+                        
+                        # Show results table
+                        st.dataframe(results_df_rf, width='stretch')
+                    
+                    st.success("✅ Random Forest analysis completed!")
+                    
+                except Exception as e:
+                    st.error(f"Failed to generate RF visualizations: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
         # Probability calibration on validation split (trained data analysis)
         st.subheader("Probability Calibration (Validation)")
         st.caption("Reliability curve: predicted probability vs observed frequency on validation data")
@@ -338,6 +533,9 @@ with tab1:
 
 # TAB 2: Predict New Data
 with tab2:
+    # Clear any cached matplotlib figures from previous runs
+    plt.close('all')
+    
     st.title("🔮 Predict Health Score for New Data")
     st.caption("Upload a CSV file with new student data to get health predictions from the ensemble (RF + SVM + MLP + HGB)")
     
@@ -509,18 +707,21 @@ with tab2:
                         col3.metric("Predicted Unhealthy", len(predictions[predictions['Predicted_Health'] == 'Low']))
 
                         # Overall score quick stats
-                        if 'Overall health score' in predictions.columns:
-                            overall_col = 'Overall health score'
+                        overall_col_stats = None
+                        if 'Overall Health Score' in predictions.columns:
+                            overall_col_stats = 'Overall Health Score'
+                        elif 'Overall health score' in predictions.columns:
+                            overall_col_stats = 'Overall health score'
                         elif 'Overall health score (predicted)' in predictions.columns:
-                            overall_col = 'Overall health score (predicted)'
-                        else:
-                            overall_col = None
-                        if overall_col:
-                            st.caption("Overall health score summary")
-                            m1, m2, m3 = st.columns(3)
-                            m1.metric("Mean", f"{predictions[overall_col].mean():.1f}")
-                            m2.metric("Median", f"{predictions[overall_col].median():.1f}")
-                            m3.metric("Std", f"{predictions[overall_col].std():.1f}")
+                            overall_col_stats = 'Overall health score (predicted)'
+                        
+                        if overall_col_stats:
+                            st.caption(f"Health score summary ({overall_col_stats})")
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("Mean", f"{predictions[overall_col_stats].mean():.1f}")
+                            m2.metric("Median", f"{predictions[overall_col_stats].median():.1f}")
+                            m3.metric("Std", f"{predictions[overall_col_stats].std():.1f}")
+                            m4.metric("Above 80", f"{(predictions[overall_col_stats] > 80).sum()}")
 
                         # Build subgroup from Gender + Sleep Duration
                         st.subheader("Predictions Analysis (New Data)")
@@ -554,7 +755,8 @@ with tab2:
                                 ax.set_xlabel('Subgroup')
                                 ax.legend(title='Predicted')
                                 ax.grid(axis='y', alpha=0.3)
-                                st.pyplot(fig)
+                                st.pyplot(fig, clear_figure=True)
+                                plt.close(fig)
                             except Exception as e:
                                 st.error(f"Failed to render predicted counts: {e}")
                         with cc2:
@@ -567,14 +769,17 @@ with tab2:
                                 ax.set_xlabel('Mean Confidence')
                                 ax.set_xlim(0,1.05)
                                 ax.grid(axis='x', alpha=0.3)
-                                st.pyplot(fig)
+                                st.pyplot(fig, clear_figure=True)
+                                plt.close(fig)
                             except Exception as e:
                                 st.error(f"Failed to render confidence chart: {e}")
 
                         st.subheader("Health Score Analysis")
                         hs1, hs2 = st.columns(2)
                         overall_col = None
-                        if 'Overall health score' in preds.columns:
+                        if 'Overall Health Score' in preds.columns:
+                            overall_col = 'Overall Health Score'
+                        elif 'Overall health score' in preds.columns:
                             overall_col = 'Overall health score'
                         elif 'Overall health score (predicted)' in preds.columns:
                             overall_col = 'Overall health score (predicted)'
@@ -584,34 +789,49 @@ with tab2:
                                 try:
                                     fig, ax = plt.subplots(figsize=(5,3))
                                     vals = preds[overall_col].dropna()
-                                    ax.hist(vals, bins=10, color="#16a085", alpha=0.8, edgecolor="black")
+                                    # Use proper bins for the actual data range
+                                    bins = range(0, 105, 10)  # 0-10, 10-20, ..., 90-100
+                                    ax.hist(vals, bins=bins, color="#16a085", alpha=0.8, edgecolor="black")
                                     ax.set_xlabel("Overall Health Score (0–100)")
                                     ax.set_ylabel("Count")
                                     ax.set_xlim(0, 100)
-                                    ax.axvline(80, color='red', linestyle='--', linewidth=1)
+                                    ax.axvline(80, color='red', linestyle='--', linewidth=2, label='Threshold (80)')
+                                    ax.legend()
                                     ax.grid(axis='y', alpha=0.3)
-                                    st.pyplot(fig)
+                                    # Add summary stats
+                                    mean_score = vals.mean()
+                                    ax.set_title(f"Mean: {mean_score:.1f}, Median: {vals.median():.1f}")
+                                    st.pyplot(fig, clear_figure=True)
+                                    plt.close(fig)
                                 except Exception as e:
                                     st.error(f"Failed to render score histogram: {e}")
                             with hs2:
                                 st.caption("Score by Gender × Sleep Group")
                                 try:
-                                    fig, ax = plt.subplots(figsize=(5,3))
+                                    fig, ax = plt.subplots(figsize=(6,4))
                                     plot_df = preds.copy()
                                     plot_df = plot_df.dropna(subset=[overall_col])
                                     if 'Gender_Sleep_Group' not in plot_df.columns:
                                         plot_df['Gender_Sleep_Group'] = plot_df['Gender'].astype(str)
-                                    sns.boxplot(data=plot_df, x='Gender_Sleep_Group', y=overall_col, ax=ax, color="#2980b9")
-                                    ax.set_xlabel("Subgroup")
-                                    ax.set_ylabel("Overall Health Score")
-                                    ax.tick_params(axis='x', rotation=30)
-                                    ax.set_ylim(0, 100)
-                                    ax.axhline(80, color='red', linestyle='--', linewidth=1)
+                                    
+                                    # Create boxplot with proper ordering
+                                    unique_groups = sorted(plot_df['Gender_Sleep_Group'].unique())
+                                    sns.boxplot(data=plot_df, x='Gender_Sleep_Group', y=overall_col, 
+                                              ax=ax, palette="Set2", order=unique_groups)
+                                    ax.set_xlabel("Subgroup", fontsize=10)
+                                    ax.set_ylabel("Overall Health Score", fontsize=10)
+                                    ax.set_ylim(0, 105)
+                                    ax.axhline(80, color='red', linestyle='--', linewidth=2, label='Threshold (80)')
+                                    
+                                    # Add sample counts to labels
                                     counts = plot_df['Gender_Sleep_Group'].value_counts()
-                                    xlabels = [lbl.get_text() for lbl in ax.get_xticklabels()]
-                                    ax.set_xticklabels([f"{lbl} (n={counts.get(lbl, 0)})" for lbl in xlabels])
+                                    new_labels = [f"{grp}\n(n={counts.get(grp, 0)})" for grp in unique_groups]
+                                    ax.set_xticklabels(new_labels, rotation=45, ha='right', fontsize=8)
+                                    ax.legend()
                                     ax.grid(axis='y', alpha=0.3)
-                                    st.pyplot(fig)
+                                    plt.tight_layout()
+                                    st.pyplot(fig, clear_figure=True)
+                                    plt.close(fig)
                                 except Exception as e:
                                     st.error(f"Failed to render subgroup boxplot: {e}")
                         else:

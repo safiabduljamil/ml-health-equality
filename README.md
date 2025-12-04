@@ -56,7 +56,7 @@ python3 --version
 pip install -r requirements.txt
 ```
 
-**Required packages**: pandas, numpy, matplotlib, seaborn, scikit-learn, imbalanced-learn, streamlit
+**Required packages**: pandas, numpy, matplotlib, seaborn, scikit-learn, imbalanced-learn, scikit-optimize, streamlit
 
 ### 2. Run ML Pipeline
 ```bash
@@ -72,13 +72,14 @@ python3 code/health_prediction_pipeline.py
 - Creates rolling statistics features (30-min windows)
 - Splits data chronologically by subgroups (60/10/30)
 - Applies SMOTE for class balancing
-- Trains 4 calibrated base models (RF, SVM, MLP, HGB)
+- Trains 4 base models with Bayesian hyperparameter optimization (10-20 iterations each)
+- Applies probability calibration to each optimized model
 - Trains stacking meta-model with subgroup weighting
 - Tunes per-subgroup thresholds on validation set
 - Evaluates fairness on test set
 - Saves model to `models/stacking_ensemble.pkl`
 - Saves results to `data/final_subgroup_performance.csv`
-- Generates console output with detailed metrics
+- Generates console output with detailed metrics and best hyperparameters
 
 ### 3. Launch Interactive Dashboard
 ```bash
@@ -98,7 +99,12 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 
 ## Key Features
 
-- **Stacking Ensemble**: Random Forest (200 trees) + SVM (RBF) + MLP (64-32) + HGB (100 iter) + Logistic Regression Meta-Model
+- **Stacking Ensemble**: Random Forest + SVM + MLP + HGB + Logistic Regression Meta-Model
+- **Bayesian Hyperparameter Optimization**: 
+  - Uses scikit-optimize (BayesSearchCV) for efficient hyperparameter tuning
+  - Search spaces: RF (n_estimators: 100-300, max_depth: 5-15), SVM (C: 0.1-10, gamma: 0.001-1.0), MLP (alpha: 0.0001-0.01, learning_rate: 0.001-0.01), HGB (learning_rate: 0.01-0.3, max_depth: 3-10)
+  - 10-20 iterations with 3-fold CV and F1-score optimization
+  - More efficient than Grid/Random Search using Gaussian Process surrogate functions
 - **Fairness Techniques**: 
   - SMOTE for class balancing
   - CalibratedClassifierCV for probability calibration
@@ -142,6 +148,7 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 - **Abdul Jamil Safi**: 
   - Stacking ensemble implementation (health_prediction_pipeline.py)
   - Stacking architecture design (4 base models + meta-model)
+  - Bayesian hyperparameter optimization implementation (BayesSearchCV integration)
   - SMOTE integration and class balancing
   - CalibratedClassifierCV implementation
   - Per-subgroup threshold tuning algorithm
@@ -178,14 +185,15 @@ To stop the dashboard: Press `Ctrl+C` in terminal
   - Physical Activity Level: mean & std
 - **Sleep Categorization**: Short (<6h), Normal (6-8h), Long (>8h)
 - **Subgroup Labels**: Gender_Sleep_Group (e.g., "Male_Normal") → 8 unique combinations
-
 ### 3. Model Architecture
 **Stacking Ensemble** based on Wolpert (1992) and Géron (2022):
-- **Level-0 (Base Models)**:
-  - Random Forest: 200 trees, max_depth=10, class_weight='balanced' + Calibration (isotonic)
-  - SVM: RBF kernel, C=1.0 + Calibration (sigmoid)
-  - MLP Neural Network: (64, 32) layers, ReLU, Adam + Calibration (sigmoid)
-  - Histogram Gradient Boosting: max_iter=100, learning_rate=0.1 + Calibration (isotonic)
+- **Level-0 (Base Models)** with Bayesian Hyperparameter Optimization:
+  - **Random Forest**: Optimized n_estimators (100-300), max_depth (5-15), min_samples_leaf (1-4), min_samples_split (2-6), max_features (sqrt/log2) + Calibration (isotonic)
+  - **SVM**: Optimized C (0.1-10 log-uniform), gamma (0.001-1.0 log-uniform), kernel (rbf/poly) + Calibration (sigmoid)
+  - **MLP Neural Network**: Fixed architecture (64, 32), optimized alpha (0.0001-0.01), learning_rate_init (0.001-0.01) + Calibration (sigmoid)
+  - **Histogram Gradient Boosting**: Optimized learning_rate (0.01-0.3), max_depth (3-10), max_iter (50-150), min_samples_leaf (10-30) + Calibration (isotonic)
+  - Bayesian optimization uses BayesSearchCV with 10-20 iterations, 3-fold CV, F1-score maximization
+- **Level-1 (Meta-Model)**: Logistic Regression with inverse subgroup weights, C=1.0, class_weight='balanced'
 - **Level-1 (Meta-Model)**: Logistic Regression with inverse subgroup weights, C=1.0, class_weight='balanced'
 
 ### 4. Fairness Techniques
@@ -374,14 +382,15 @@ cd /Users/abduljamilsafi/Documents/Second_project
 2. **Install dependencies**
 ```bash
 pip install -r requirements.txt
-```
-
 **Dependencies installed**:
 - `pandas` - Data manipulation
 - `numpy` - Numerical operations
 - `matplotlib` - Plotting
 - `seaborn` - Statistical visualizations
 - `scikit-learn` - Machine learning models
+- `imbalanced-learn` - SMOTE implementation
+- `scikit-optimize` - Bayesian hyperparameter optimization
+- `streamlit` - Dashboard framework models
 - `imbalanced-learn` - SMOTE implementation
 - `streamlit` - Dashboard framework
 
