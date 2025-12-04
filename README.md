@@ -16,9 +16,8 @@ Machine Learning project for predicting student health with fairness analysis ac
 ```
 Second_project/
 ├── code/                                    # Source code
-│   ├── health_prediction_pipeline.py       # Main ML pipeline with stacking ensemble
-│   ├── dashboard.py                         # Interactive Streamlit dashboard
-│   └── health.py                           # Alternative pipeline implementation
+│   ├── health_prediction_pipeline.py       # Main ML pipeline with stacking ensemble (RF+SVM+MLP+HGB)
+│   └── dashboard.py                         # Interactive Streamlit dashboard
 │
 ├── data/                                    # Datasets and results
 │   ├── student_health_data.csv             # Original dataset (100 observations)
@@ -26,20 +25,24 @@ Second_project/
 │   └── example_new_data.csv               # Example file for predictions (20 samples)
 │
 ├── models/                                  # Trained models
-│   └── stacking_ensemble.pkl               # Saved stacking ensemble with calibration
+│   └── stacking_ensemble.pkl               # Saved stacking ensemble with calibration (1.5MB)
 │
 ├── notebooks/                               # Jupyter notebooks
 │   └── 01_data_preparation.ipynb           # Exploratory data analysis
 │
 ├── reports/                                 # Scientific documentation
-│   ├── final_scientific_report.tex         # LaTeX source (3 pages, German)
-│   ├── final_scientific_report.pdf         # Compiled PDF report
-│   ├── references.bib                      # Bibliography (5 references)
+│   ├── final_scientific_report.tex         # LaTeX source (4 pages, German)
+│   ├── final_scientific_report.pdf         # Compiled PDF report with bibliography
+│   ├── references.bib                      # Bibliography (6 references)
 │   └── figures/                            # Dashboard-generated visualizations
 │       ├── performance_table.png           # Subgroup metrics table
 │       ├── f1_by_subgroup.png             # F1 scores bar chart
+│       ├── rf_subgroup_analysis.png       # Random Forest analysis
 │       ├── size_vs_f1.png                 # Sample size correlation
 │       └── f1_vs_accuracy.png             # Metric comparison
+│
+├── visualizations/                          # Pipeline-generated figures
+│   └── subgroup_analysis.png              # Subgroup performance visualization
 │
 ├── requirements.txt                         # Python dependencies
 └── README.md                               # This file
