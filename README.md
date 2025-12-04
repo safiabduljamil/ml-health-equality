@@ -168,6 +168,7 @@ To stop the dashboard: Press `Ctrl+C` in terminal
 
 ### 1. Data Preparation
 - **Dataset**: 100 chronologically sorted student observations (5-minute intervals)
+- **Data Source**: Biosensor Student Health & Fitness Data from [Kaggle](https://www.kaggle.com/datasets/ziya07/biosensor-studenthealthfitnessdata)
 - **Features**: Demographics (Age, Gender), Physiological (Heart Rate, Blood Pressure, Temperature, Blood Oxygen), Behavioral (Physical Activity, Sleep Duration, Stress, Hydration)
 - **Target**: Overall Health Score binary (>80 = High, ≤80 = Low)
 
@@ -451,11 +452,12 @@ Explore step-by-step data preparation and feature engineering
 
 ## References
 
-1. **Obermeyer et al. (2019)**: "Dissecting racial bias in an algorithm used to manage the health of populations", *Science*
-2. **Wolpert (1992)**: "Stacked generalization", *Neural Networks*
-3. **Géron (2022)**: "Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow" (3rd ed.)
-4. **Chawla et al. (2002)**: "SMOTE: Synthetic Minority Over-sampling Technique", *Journal of Artificial Intelligence Research*
-5. **Mehrabi et al. (2021)**: "A Survey on Bias and Fairness in Machine Learning", *ACM Computing Surveys*
+1. **Dataset**: Ziya (2024). "Biosensor Student Health & Fitness Data", *Kaggle*. https://www.kaggle.com/datasets/ziya07/biosensor-studenthealthfitnessdata
+2. **Obermeyer et al. (2019)**: "Dissecting racial bias in an algorithm used to manage the health of populations", *Science*
+3. **Wolpert (1992)**: "Stacked generalization", *Neural Networks*
+4. **Géron (2022)**: "Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow" (3rd ed.)
+5. **Chawla et al. (2002)**: "SMOTE: Synthetic Minority Over-sampling Technique", *Journal of Artificial Intelligence Research*
+6. **Mehrabi et al. (2021)**: "A Survey on Bias and Fairness in Machine Learning", *ACM Computing Surveys*
 
 ## License
 
